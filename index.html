@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>東武野田線 列車位置</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f5f8f7;color:#18251f;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",sans-serif}
+header{height:64px;background:#078a4b;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 18px;box-shadow:0 2px 8px #0002;position:relative;z-index:20}
+.header-title{font-size:20px;font-weight:800}.header-status{font-size:12px;opacity:.9}
+#map{position:relative;max-width:700px;margin:auto;padding-top:25px;padding-bottom:45px;min-height:2100px}
+#line{position:absolute;width:5px;left:50%;top:32px;bottom:48px;transform:translateX(-50%);background:#078a4b;border-radius:5px;z-index:1}
+.station{position:relative;height:58px;width:100%}
+.station-dot{position:absolute;left:50%;top:50%;width:15px;height:15px;transform:translate(-50%,-50%);background:#fff;border:4px solid #078a4b;border-radius:50%;z-index:5}
+.station-name{position:absolute;left:calc(50% + 22px);top:50%;transform:translateY(-50%);padding:4px 0;background:#f5f8f7;font-size:14px;font-weight:500;white-space:nowrap;z-index:4}
+#trains{position:absolute;left:0;right:0;top:0;pointer-events:none;z-index:10}
+.train{position:absolute;width:145px;min-height:59px;padding:7px 9px;background:#fff;border:2px solid #078a4b;border-radius:9px;box-shadow:0 2px 7px #0002;cursor:pointer;pointer-events:auto;transition:top .5s,transform .15s}
+.train:hover{transform:scale(1.02)}.train.left{left:8px}.train.right{right:8px}
+.train-type{font-size:13px;font-weight:800}.train-destination{margin-top:2px;font-size:13px;font-weight:bold}.train-current{margin-top:3px;font-size:11px;color:#66736d}
+.train.local{border-color:#078a4b}.train.local .train-type{color:#078a4b}
+.train.express{border-color:#e52235}.train.express .train-type{color:#e52235}
+.train.semi-express{border-color:#f52b88}.train.semi-express .train-type{color:#f52b88}
+.last-badge{display:inline-block;margin-top:4px;padding:2px 7px;border-radius:20px;background:#e52235;color:#fff;font-size:10px;font-weight:bold}
+.sheet{display:none;position:fixed;inset:0;background:#0a191861;z-index:100}
+.sheet-content{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:min(680px,100%);max-height:88vh;overflow-y:auto;background:#fff;border-radius:22px 22px 0 0;padding:22px 18px 25px;box-shadow:0 -5px 25px #0003}
+.close-button{position:absolute;top:15px;right:15px;width:38px;height:38px;border:0;border-radius:50%;background:#eef2f0;color:#617069;font-size:22px;cursor:pointer}
+.sheet-title{padding-right:50px;margin-bottom:18px;font-size:23px;font-weight:800}
+.type-badge{display:inline-block;padding:5px 10px;margin-right:7px;border-radius:7px;font-size:13px;color:#fff}
+.type-local{background:#078a4b}.type-express{background:#e52235}.type-semi{background:#f52b88}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#dfe7e3;border-radius:14px;overflow:hidden;margin-bottom:13px}
+.info-cell{background:#f4f7f6;padding:14px}.info-label{color:#728079;font-size:11px;margin-bottom:4px}.info-value{font-size:16px;font-weight:800}
+.info-box{padding:14px;margin-top:10px;border-radius:12px;font-size:14px}
+.waiting-box{background:#fff2f7;border-left:5px solid #f52b88}.last-box{background:#fff0f1;border-left:5px solid #e52235}.connection-box{background:#edf8f2;border-left:5px solid #078a4b}
+.section-title{margin-top:20px;margin-bottom:9px;font-size:17px;font-weight:800}
+.stop-list{margin:0;border:1px solid #e1e8e4;border-radius:10px;overflow:hidden;background:#fff}
+.stop{position:relative;padding:7px 0;font-size:14px;color:#66736d}
+.stop:before{content:"";position:absolute;left:-31px;top:11px;width:11px;height:11px;background:#fff;border:3px solid #078a4b;border-radius:50%}
+ .stop.current{color:#078a4b;font-weight:800}.stop.current:before{width:15px;height:15px;left:-33px;top:9px;background:#078a4b}
+.schedule-head,.schedule-row{display:grid;grid-template-columns:minmax(0,1fr) 78px 78px;align-items:center;column-gap:8px}
+.schedule-head{margin:8px 0 4px;padding:0 10px;color:#68756f;font-size:12px;font-weight:700;border-bottom:1px solid #dfe7e3;padding-bottom:8px}
+.schedule-row{position:relative;margin:0;padding:10px;font-size:14px;color:#44514b;border-bottom:1px solid #e7ece9}
+.schedule-row.current{background:#eaf7f0;color:#078a4b;font-weight:800}
+.schedule-time{text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+.terminal-label{display:inline-block;margin-left:7px;padding:2px 5px;border-radius:5px;background:#e8ecea;color:#68756f;font-size:10px;font-weight:700}
+
+@media(max-width:500px){.header-title{font-size:17px}.header-status{font-size:10px}.train{width:128px}.station-name{font-size:13px}.sheet-title{font-size:20px}}
+</style>
+</head>
+<body>
+<header><div class="header-title">東武野田線　列車位置</div><div class="header-status">● ダミー運行</div></header>
+<div id="map"><div id="line"></div><div id="stations"></div><div id="trains"></div></div>
+<div id="sheet" class="sheet" onclick="closeSheetOutside(event)">
+<div class="sheet-content" onclick="event.stopPropagation()">
+<button class="close-button" onclick="closeSheet()">×</button>
+<div id="sheetTitle" class="sheet-title"></div>
+<div id="trainInfo"></div><div id="waitingInfo"></div><div id="lastTrainInfo"></div><div id="connectionInfo"></div>
+<div class="section-title">停車駅・時刻</div><div class="schedule-note">※現在はテスト用時刻です。実際の時刻表ではありません。</div><div class="schedule-head"><div>駅</div><div>到着</div><div>発車</div></div><div id="stopList" class="stop-list"></div>
+</div></div>
+<script>
+const stations=["大宮","北大宮","大宮公園","大和田","七里","岩槻","東岩槻","豊春","八木崎","春日部","藤の牛島","南桜井","川間","七光台","清水公園","愛宕","野田市","梅郷","運河","江戸川台","初石","流山おおたかの森","豊四季","柏","新柏","増尾","逆井","高柳","六実","新鎌ケ谷","鎌ケ谷","馬込沢","塚田","新船橋","船橋"];
+
+const trains=[
+{id:1,type:"普通",destination:"船橋",current:9,status:"正常",waitingStation:"柏",waitingFor:"急行",firstArrival:"流山おおたかの森",isLastTrain:false,lastTrainDestination:"船橋",lastTrainStation:"柏",connectionStation:"柏",connectionDestination:"船橋",endAction:"turnback",terminalWait:0},
+{id:2,type:"急行",destination:"船橋",current:23,status:"正常",waitingStation:null,waitingFor:null,firstArrival:null,isLastTrain:false,lastTrainDestination:"船橋",lastTrainStation:"柏",connectionStation:null,connectionDestination:null,endAction:"turnback",terminalWait:0},
+{id:3,type:"普通",destination:"大宮",current:23,status:"正常",waitingStation:"春日部",waitingFor:"区間急行",firstArrival:"大宮",isLastTrain:false,lastTrainDestination:"大宮",lastTrainStation:"春日部",connectionStation:"春日部",connectionDestination:"大宮",endAction:"depot",terminalWait:0},
+{id:4,type:"区間急行",destination:"大宮",current:18,status:"正常",waitingStation:null,waitingFor:null,firstArrival:null,isLastTrain:false,lastTrainDestination:"大宮",lastTrainStation:"春日部",connectionStation:null,connectionDestination:null,endAction:"turnback",terminalWait:0},
+{id:5,type:"普通",destination:"柏",current:16,status:"正常",waitingStation:null,waitingFor:null,firstArrival:null,isLastTrain:true,lastTrainDestination:"柏",lastTrainStation:"野田市",connectionStation:"野田市",connectionDestination:"柏",endAction:"depot",terminalWait:0}
+];
+
+function trainClass(t){return t==="急行"?"express":t==="区間急行"?"semi-express":"local"}
+function direction(t){let d=stations.indexOf(t.destination);return d<t.current?"left":d>t.current?"right":"terminal"}
+function nextIndex(t){let d=stations.indexOf(t.destination);return t.current===d?t.current:d>t.current?t.current+1:t.current-1}
+function route(t){let d=stations.indexOf(t.destination),a=[];if(d>t.current){for(let i=t.current;i<=d;i++)a.push(stations[i])}else{for(let i=t.current;i>=d;i--)a.push(stations[i])}return a}
+
+function fmtTime(min){min=((min%1440)+1440)%1440;return String(Math.floor(min/60)).padStart(2,"0")+":"+String(min%60).padStart(2,"0")}
+function scheduleFor(t){
+ const r=[]; const now=new Date(); const base=now.getHours()*60+now.getMinutes();
+ const type=t.type==="普通"?3:2;
+ route(t).forEach((s,i)=>{let arr=base+i*type; let dep=(i===route(t).length-1)?null:arr+1; r.push({station:s,arr:fmtTime(arr),dep:dep===null?"---":fmtTime(dep)});});
+ return r;
+}
+
+function renderStations(){
+ const c=document.getElementById("stations");c.innerHTML="";
+ stations.forEach(s=>{let e=document.createElement("div");e.className="station";e.innerHTML='<div class="station-dot"></div><div class="station-name">'+s+"</div>";c.appendChild(e)})
+}
+
+function renderTrains(){
+ const c=document.getElementById("trains");c.innerHTML="";
+ trains.forEach(t=>{
+  let e=document.createElement("div"),d=direction(t);
+  e.className="train "+trainClass(t.type)+" "+(d==="left"?"left":"right");
+  e.style.top=(22+t.current*58)+"px";
+  e.innerHTML='<div class="train-type">'+t.type+'</div><div class="train-destination">'+t.destination+'行</div><div class="train-current">'+stations[t.current]+'</div>'+(t.isLastTrain?'<div class="last-badge">最終電車</div>':"");
+  e.onclick=()=>openSheet(t);c.appendChild(e);
+ })
+}
+
+function openSheet(t){
+ let d=direction(t),n=nextIndex(t);
+ let dir=d==="left"?"大宮方面":d==="right"?"船橋方面":"終着";
+ let badge=t.type==="急行"?"type-express":t.type==="区間急行"?"type-semi":"type-local";
+ document.getElementById("sheetTitle").innerHTML='<span class="type-badge '+badge+'">'+t.type+"</span> "+t.destination+"行";
+ document.getElementById("trainInfo").innerHTML='<div class="info-grid">'+
+ '<div class="info-cell"><div class="info-label">現在地</div><div class="info-value">'+stations[t.current]+"</div></div>"+
+ '<div class="info-cell"><div class="info-label">次の駅</div><div class="info-value">'+(d==="terminal"?"終着":stations[n])+"</div></div>"+
+ '<div class="info-cell"><div class="info-label">方向</div><div class="info-value">'+dir+"</div></div>"+
+ '<div class="info-cell"><div class="info-label">運行状況</div><div class="info-value">'+t.status+"</div></div></div>";
+
+ document.getElementById("waitingInfo").innerHTML=t.waitingStation&&t.waitingFor?
+ '<div class="info-box waiting-box"><strong>待避情報</strong><br><br>'+t.waitingStation+"で"+t.waitingFor+"を待避"+(t.firstArrival?"<br><br><strong>"+t.firstArrival+"まで先着</strong>":"")+"</div>":"";
+
+ document.getElementById("lastTrainInfo").innerHTML=t.isLastTrain?
+ '<div class="info-box last-box"><strong>最終電車情報</strong><br><br>この列車は'+t.destination+'行きの<strong>最終電車</strong>です。</div>':
+ t.lastTrainDestination?
+ '<div class="info-box last-box"><strong>最終電車情報</strong><br><br>'+t.lastTrainDestination+'行き最終電車<br><br>'+t.lastTrainStation+"で"+t.lastTrainDestination+"行き最終電車に接続</div>":"";
+
+ document.getElementById("connectionInfo").innerHTML=t.connectionStation&&t.connectionDestination?
+ '<div class="info-box connection-box"><strong>接続情報</strong><br><br>'+t.connectionStation+"で"+t.connectionDestination+"行きに接続</div>":"";
+
+ let list=document.getElementById("stopList");list.innerHTML="";
+ const sched=scheduleFor(t);
+ sched.forEach((x,i)=>{let e=document.createElement("div");e.className="schedule-row"+(i===0?" current":"")+(i===sched.length-1?" terminal":"");e.innerHTML='<div>'+x.station+(i===sched.length-1?'<span class="terminal-label">終着</span>':"")+'</div><div class="schedule-time">'+x.arr+'</div><div class="schedule-time">'+x.dep+'</div>';list.appendChild(e)});
+ document.getElementById("sheet").style.display="block";
+}
+
+function closeSheet(){document.getElementById("sheet").style.display="none"}
+function closeSheetOutside(e){if(e.target===e.currentTarget)closeSheet()}
+
+renderStations();renderTrains();
+
+setInterval(()=>{
+ trains.forEach(t=>{
+  if(t.hidden)return;
+  let d=stations.indexOf(t.destination);
+  if(t.current===d){
+   if(t.terminalWait<1){
+    t.status="終着";
+    t.terminalWait++;
+   }else{
+    if(t.endAction==="turnback"){
+     t.destination=t.current===0?stations[stations.length-1]:stations[0];
+     t.status="正常";
+     t.terminalWait=0;
+    }else if(t.endAction==="depot"){
+     t.status="回送・留置";
+     t.hidden=true;
+    }
+   }
+   return;
+  }
+  t.current+=d>t.current?1:-1;
+ });
+ renderTrains();
+},30000);
+</script>
+</body>
+</html>
